@@ -5,7 +5,7 @@
 ## Contexte du projet 🪧
 
 Les gars, c'est la merde...
-
+[text](../doc.md) [text](../readme.md)
 6 mois se sont écoulés depuis votre première expérience chez KDF !
 
 A la surprise général le projet n'a pas marché ! Cependant le PDG de KDF est un dur à cuire et a déja une nouvelle idée en tête !
