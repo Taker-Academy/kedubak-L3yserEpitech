@@ -75,7 +75,6 @@ Le serveur renvoie un token JWT qui permettra à l'utilisateur de s'authentifier
 }
 ```
 
-
 ## Format de réponse (201 OK)
 
 ```json
@@ -91,7 +90,6 @@ Le serveur renvoie un token JWT qui permettra à l'utilisateur de s'authentifier
     }
 }
 ```
-
 
 ## Réponse possible
 
@@ -301,7 +299,7 @@ Cette route permet de récupérer la liste des éléments (posts).
 
 ## Réponses Possibles
 - **200 OK:** Liste des éléments récupérée avec succès.
-- **401 Unauthorized:** Mauvais token JWT.
+- **401 Unauthorized:** Mauvais token JWT.func (svc *UserService) GetInfoUser(w http.ResponseWriter, r *http.Request) {
 - **500 Internal Server Error:** Erreur interne du serveur.
 
 --- 

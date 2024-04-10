@@ -22,6 +22,14 @@ func (r *UserRepo) InsertUser(user *model.User) (interface{}, error) {
     return result.InsertedID, nil
 }
 
+func (r *UserRepo) NewPost(post *model.Post) (interface{}, error) {
+    result, err := r.MongoColletion.InsertOne(context.Background(), post)
+    if err != nil {
+        return nil, err
+    }
+    return result.InsertedID, nil
+}
+
 func (r *UserRepo) FindUserByID(userID primitive.ObjectID) (*model.User, error) {
     var user model.User
 
@@ -51,10 +59,12 @@ func (r *UserRepo) FindAllUser() ([]model.User, error) {
 	return users, nil
 }
 
-func (r *UserRepo) UpdateUserByID(userID primitive.ObjectID, updateUser *model.User) (int64, error) {
-    result, err := r.MongoColletion.UpdateOne(context.Background(),
-        bson.D{{Key: "_id", Value: userID}},
-        bson.D{{Key: "$set", Value: updateUser}})
+func (r *UserRepo) UpdateUserByID(ctx context.Context, userID primitive.ObjectID, update bson.M) (int64, error) {
+    result, err := r.MongoColletion.UpdateOne(
+        ctx,
+        bson.M{"_id": userID},
+        update, // Utilisez directement l'argument update
+    )
 
     if err != nil {
         return 0, err
@@ -63,7 +73,7 @@ func (r *UserRepo) UpdateUserByID(userID primitive.ObjectID, updateUser *model.U
     return result.ModifiedCount, nil
 }
 
-func (r *UserRepo) DeleteUserByID(userID primitive.ObjectID) (int64, error) {
+func (r *UserRepo) DeleteUserByID(ctx context.Context, userID primitive.ObjectID) (int64, error) {
     result, err := r.MongoColletion.DeleteOne(context.Background(),
         bson.D{{Key: "_id", Value: userID}})
     

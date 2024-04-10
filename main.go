@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"os"
 
-	// "github.com/gofiber/fiber/v2/middleware/healthcheck"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -18,52 +18,76 @@ import (
 var mongoClient *mongo.Client
 
 func init() {
-	// load .envfile
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("env load error", err)
+	if os.Getenv("TEST_ENV") == "true" {
+		return
 	}
-	log.Println("env file loaded")
+
+	// Chargement du fichier .env
+	if err := godotenv.Load(); err != nil {
+		log.Fatal("Erreur lors du chargement du fichier env:", err)
+	}
+	log.Println("Fichier env chargé")
+
+	var err error
 	mongoClient, err = mongo.Connect(context.Background(), options.Client().ApplyURI(os.Getenv("MONGO_URI")))
-
 	if err != nil {
-		log.Fatal("connection error", err)
+		log.Fatal("Erreur de connexion à MongoDB:", err)
 	}
 
-	mongoClient.Ping(context.Background(), readpref.Primary())
-
-	if err != nil {
-		log.Fatal("ping failed", err)
+	if err = mongoClient.Ping(context.Background(), readpref.Primary()); err != nil {
+		log.Fatal("Échec de la connexion à MongoDB:", err)
 	}
 
-	log.Println("mongo connected")
+	log.Println("Connexion à MongoDB réussie")
 }
 
 func main() {
-	// close mongo connection
-	defer mongoClient.Disconnect(context.Background())
+	defer func() {
+		if err := mongoClient.Disconnect(context.Background()); err != nil {
+			log.Fatal("Erreur lors de la déconnexion de MongoDB:", err)
+		}
+	}()
 
 	coll := mongoClient.Database(os.Getenv("DB_NAME")).Collection(os.Getenv("COLLECTION_NAME"))
 
-	// create user service
+	// Création du service utilisateur
 	userService := usecase.UserService{MongoColletion: coll}
 
 	r := mux.NewRouter()
 
+	// Configuration des routes
+	r.Use(loggingMiddleware)
 	r.HandleFunc("/health", healthHandler).Methods(http.MethodGet)
+	r.HandleFunc("/auth/register", userService.CreateUser).Methods(http.MethodPost)
+	r.HandleFunc("/auth/login", userService.LoginUser).Methods(http.MethodPost)
+	r.HandleFunc("/user/me", userService.GetInfoUser).Methods(http.MethodGet) // Correction pour utiliser GET et la route /users
+	r.HandleFunc("/user/edit", userService.UpdateUser).Methods(http.MethodPut)
+	r.HandleFunc("/user/remove", userService.DeleteUser).Methods(http.MethodDelete)
+	r.HandleFunc("/post", userService.CreatePost).Methods(http.MethodPost)
 
-	r.HandleFunc("/user", userService.CreateUser).Methods(http.MethodPost)
-	r.HandleFunc("/user/{id}", userService.GetUserByID).Methods(http.MethodGet)
-	r.HandleFunc("/user", userService.GetAllUser).Methods(http.MethodPost)
-	r.HandleFunc("/user/{id}", userService.UpdateUserByID).Methods(http.MethodPut)
-	r.HandleFunc("/user/{id}", userService.DeleteUserByID).Methods(http.MethodDelete)
-	r.HandleFunc("/user", userService.DeleteAllUser).Methods(http.MethodDelete)
-	
-	log.Println("server is running on 4444")
-	http.ListenAndServe(":4444", r)
+	// Configuration du middleware CORS
+	corsHandler := handlers.CORS(
+		handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"}),
+		handlers.AllowedOrigins([]string{"*"}), // À ajuster selon les besoins
+		handlers.AllowedMethods([]string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions}),
+	)
+
+	// Démarrage du serveur
+	log.Println("Le serveur est en cours d'exécution sur le port 8080")
+	if err := http.ListenAndServe(":8080", corsHandler(r)); err != nil {
+		log.Fatal("Erreur lors du démarrage du serveur:", err)
+	}
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("Requête reçue sur /health")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("running..."))
+}
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf(" loggingMiddleWare : Requête reçue: %s %s", r.Method, r.RequestURI)
+		next.ServeHTTP(w, r)
+	})
 }
