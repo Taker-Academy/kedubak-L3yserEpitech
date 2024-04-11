@@ -13,17 +13,26 @@ import (
 	"kedubak/repository"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
-	"os"
 )
 
+func GenerateCustomClaims(userEmail string, userID string) jwt.MapClaims {
+	expirationTime := time.Now().Add(24 * time.Hour) // Expiration dans 24 heures
+
+	claims := jwt.MapClaims{
+		"authorized": true,
+		"userEmail":  userEmail,
+		"userID":     userID,
+		"exp":        expirationTime.Unix(),
+	}
+
+	return claims
+}
+
 func GenerateJWT(userEmail string, userID string) (string, error) {
-	claims := jwt.MapClaims{}
-	claims["authorized"] = true
-	claims["userEmail"] = userEmail
-	claims["userID"] = userID
-	claims["exp"] = time.Now().Add(time.Hour * 24).Unix()
+	claims := GenerateCustomClaims(userEmail, userID)
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
@@ -66,12 +75,12 @@ func (svc *UserService) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user.ID = primitive.NewObjectID()
-	token, err := GenerateJWT(user.Email, "x9e3ea")
+	token, err := GenerateJWT(user.Email, user.ID)
 	if err != nil {
 		fmt.Println("Erreur lors de la génération du token:", err)
 		return
 	}
+	user.ID = primitive.NewObjectID()
 	repo := repository.UserRepo{MongoColletion: svc.MongoColletion}
 	user.CreatedAt = time.Now()
 	user.LastUpVote = time.Now().Add(-1 * time.Minute)
@@ -190,9 +199,10 @@ func (svc *UserService) GetInfoUser(w http.ResponseWriter, r *http.Request) {
 }
 
 type CustomClaims struct {
-	UserID    string `json:"userID"`
-	UserEmail string `json:"userEmail"`
 	jwt.StandardClaims
+	Authorized bool   `json:"authorized"`
+	UserEmail  string `json:"userEmail"`
+	UserID     string `json:"userID"`
 }
 
 type UserUpdateRequest struct {
@@ -209,16 +219,21 @@ func ValidateJWT(tokenString string) (string, error) {
 	}
 	tokenString = splitToken[1]
 
-	var mySigningKey = []byte("votre_cle_secrete")
+	var mySigningKey = []byte(os.Getenv("TOKEN_KEY"))
+	println()
 
 	// Parse le token
 	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return mySigningKey, nil
 	})
 
-	if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
+	if claims, ok := token.Claims.(*CustomClaims); ok {
+		if !token.Valid {
+			log.Println("Token expiré ou non valide")
+		}
 		return claims.UserID, nil
 	} else {
+		log.Println("Erreur lors de la conversion des claims :", err)
 		return "", err
 	}
 }
